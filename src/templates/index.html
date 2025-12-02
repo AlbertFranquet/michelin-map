@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Michelin Restaurants Map</title>
+  <meta charset="utf-8" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    crossorigin=""
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css"
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css"
+  />
+  <style>
+    #map { width: 100%; height: 800px; }
+    .legend {
+      background: white;
+      padding: 6px 8px;
+      font: 14px/16px Arial, Helvetica, sans-serif;
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      border-radius: 5px;
+    }
+    .legend i {
+      width: 18px;
+      height: 18px;
+      float: left;
+      margin-right: 8px;
+      opacity: 0.7;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <label><input type="checkbox" value="1" class="star-filter" checked> 1⭐ </label>
+    <label><input type="checkbox" value="2" class="star-filter" checked> 2⭐ </label>
+    <label><input type="checkbox" value="3" class="star-filter" checked> 3⭐ </label>
+    <label>
+      <input type="checkbox" id="greenOnly"> Only Green‑Star
+    </label>
+    <button id="reload">Reload</button>
+  </div>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+
+  <script>
+    const map = L.map('map').setView([20,0], 2);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let markerCluster = L.markerClusterGroup({
+      maxClusterRadius: 50,
+      disableClusteringAtZoom: 8
+    });
+    let allData = null;
+
+    const colorByStars = {
+      1: 'blue',
+      2: 'orange',
+      3: 'red'
+    };
+
+    function loadData() {
+      const stars = Array.from(document.querySelectorAll('.star‑filter:checked')).map(el => el.value).join(',');
+      const greenOnly = document.getElementById('greenOnly').checked ? 'only' : 'all';
+      const url = '/api/restaurants?stars=' + stars + '&green=' + greenOnly;
+
+      fetch(url)
+        .then(res => res.json())
+        .then(geojson => {
+          markerCluster.clearLayers();
+
+          L.geoJSON(geojson, {
+            pointToLayer: function(feature, latlng) {
+              const s = feature.properties.stars;
+              const color = colorByStars[s] || 'gray';
+              return L.circleMarker(latlng, {
+                radius: 6,
+                fillColor: color,
+                color: color,
+                weight: 1,
+                fillOpacity: 0.8
+              }).bindPopup(
+                `<b>${feature.properties.name}</b><br>` +
+                `Stars: ${s}<br>` +
+                `Awards: ${feature.properties.award}<br>` +
+                (feature.properties.green_star ? "Green ⭐<br>" : "") +
+                `Cuisine: ${feature.properties.cuisine}<br>` +
+                (feature.properties.phone ? `Phone: ${feature.properties.phone}<br>` : "") +
+                (feature.properties.website ? `Website: <a href="${feature.properties.website}" target="_blank">${feature.properties.website}</a><br>` : "") +
+                feature.properties.city + ", " + feature.properties.country
+              );
+            }
+          }).addTo(markerCluster);
+
+          map.addLayer(markerCluster);
+        });
+    }
+
+    document.getElementById('reload').onclick = loadData;
+
+    loadData(); // initial load
+
+    // Add legend
+    const legend = L.control({ position: 'bottomright' });
+    legend.onAdd = function (map) {
+      const div = L.DomUtil.create('div', 'legend');
+      div.innerHTML += '<i style="background: red"></i> 3 ⭐<br>';
+      div.innerHTML += '<i style="background: orange"></i> 2 ⭐<br>';
+      div.innerHTML += '<i style="background: blue"></i> 1 ⭐<br>';
+      return div;
+    };
+    legend.addTo(map);
+  </script>
+</body>
+</html>
